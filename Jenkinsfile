@@ -3,8 +3,8 @@ pipeline {
 
     environment {
         DOCKERHUB_CREDENTIALS = credentials('DOCKERHUB_CREDENTIALS')
-        DOCKER_IMAGE          = "${DOCKERHUB_CREDENTIALS_USR}/tasklist-backend"
         DOCKER_TAG            = "${env.BUILD_NUMBER}"
+        PATH                  = "/usr/local/bin:/opt/homebrew/bin:${env.PATH}"
     }
 
     stages {
@@ -63,8 +63,12 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh "docker build -t ${DOCKER_IMAGE}:${DOCKER_TAG} ."
-                sh "docker tag  ${DOCKER_IMAGE}:${DOCKER_TAG} ${DOCKER_IMAGE}:latest"
+                script {
+                    def image = "${DOCKERHUB_CREDENTIALS_USR}/tasklist-backend"
+                    sh "docker build -t ${image}:${DOCKER_TAG} ."
+                    sh "docker tag  ${image}:${DOCKER_TAG} ${image}:latest"
+                    env.DOCKER_IMAGE = image
+                }
             }
         }
 
@@ -76,14 +80,14 @@ pipeline {
                         --exit-code 0 \
                         --severity HIGH,CRITICAL \
                         --no-progress \
-                        ${DOCKER_IMAGE}:${DOCKER_TAG}
+                        ${env.DOCKER_IMAGE}:${DOCKER_TAG}
                 """
             }
         }
 
         stage('Generate SBOM') {
             steps {
-                sh "syft ${DOCKER_IMAGE}:${DOCKER_TAG} -o spdx-json=sbom-spdx.json"
+                sh "syft ${env.DOCKER_IMAGE}:${DOCKER_TAG} -o spdx-json=sbom-spdx.json"
             }
             post {
                 always {
@@ -94,9 +98,9 @@ pipeline {
 
         stage('Push to Docker Hub') {
             steps {
-                sh "echo ${DOCKERHUB_CREDENTIALS_PSW} | docker login -u ${DOCKERHUB_CREDENTIALS_USR} --password-stdin"
-                sh "docker push ${DOCKER_IMAGE}:${DOCKER_TAG}"
-                sh "docker push ${DOCKER_IMAGE}:latest"
+                sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
+                sh "docker push ${env.DOCKER_IMAGE}:${DOCKER_TAG}"
+                sh "docker push ${env.DOCKER_IMAGE}:latest"
             }
         }
     }
@@ -104,8 +108,8 @@ pipeline {
     post {
         always {
             sh "docker logout || true"
-            sh "docker rmi ${DOCKER_IMAGE}:${DOCKER_TAG} || true"
-            sh "docker rmi ${DOCKER_IMAGE}:latest || true"
+            sh "docker rmi ${env.DOCKER_IMAGE}:${DOCKER_TAG} || true"
+            sh "docker rmi ${env.DOCKER_IMAGE}:latest || true"
         }
         success {
             echo "Pipeline backend terminé avec succès !"

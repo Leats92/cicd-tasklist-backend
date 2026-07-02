@@ -15,7 +15,7 @@ vi.mock('@prisma/client', () => ({
   PrismaClient: vi.fn(() => mockPrisma),
 }))
 
-import app from '../app.js'
+import app from '../../app.js'
 
 const mockTask = {
   id: 1,
